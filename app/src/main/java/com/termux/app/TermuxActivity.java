@@ -21,6 +21,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
 import android.os.Build;
@@ -32,6 +33,7 @@ import android.support.annotation.Nullable;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.support.v4.widget.DrawerLayout;
+import android.system.Os;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.TextUtils;
@@ -104,7 +106,9 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
 
     private static final String RELOAD_STYLE_ACTION = "com.termux.app.reload_style";
 
-    /** The main view of the activity showing the terminal. Initialized in onCreate(). */
+    /**
+     * The main view of the activity showing the terminal. Initialized in onCreate().
+     */
     @SuppressWarnings("NullableProblems")
     @NonNull
     TerminalView mTerminalView;
@@ -122,10 +126,14 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
      */
     TermuxService mTermService;
 
-    /** Initialized in {@link #onServiceConnected(ComponentName, IBinder)}. */
+    /**
+     * Initialized in {@link #onServiceConnected(ComponentName, IBinder)}.
+     */
     ArrayAdapter<TerminalSession> mListViewAdapter;
 
-    /** The last toast shown, used cancel current toast before showing new in {@link #showToast(String, boolean)}. */
+    /**
+     * The last toast shown, used cancel current toast before showing new in {@link #showToast(String, boolean)}.
+     */
     Toast mLastToast;
 
     /**
@@ -134,9 +142,8 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
      */
     boolean mIsVisible;
 
-    final SoundPool mBellSoundPool = new SoundPool.Builder().setMaxStreams(1).setAudioAttributes(
-        new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).build()).build();
+    SoundPool mBellSoundPool;
+
     int mBellSoundId;
 
     private final BroadcastReceiver mBroadcastReceiever = new BroadcastReceiver() {
@@ -163,8 +170,20 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
 
             final Properties props = new Properties();
             if (colorsFile.isFile()) {
-                try (InputStream in = new FileInputStream(colorsFile)) {
+                InputStream in = new FileInputStream(colorsFile);
+                try{
                     props.load(in);
+                }
+                catch (Exception ex){
+                    ex.printStackTrace();
+                }
+                finally {
+                    try{
+                        in.close();
+                    }
+                    catch (Exception ex){
+                        ex.printStackTrace();
+                    }
                 }
             }
 
@@ -189,7 +208,9 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
         }
     }
 
-    /** For processes to access shared internal storage (/sdcard) we need this permission. */
+    /**
+     * For processes to access shared internal storage (/sdcard) we need this permission.
+     */
     @TargetApi(Build.VERSION_CODES.M)
     public boolean ensureStoragePermissionGranted() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -221,6 +242,16 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
 
         final ViewPager viewPager = (ViewPager) findViewById(R.id.viewpager);
         if (mSettings.isShowExtraKeys()) viewPager.setVisibility(View.VISIBLE);
+
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
+            mBellSoundPool = new SoundPool.Builder().setMaxStreams(1).setAudioAttributes(
+                new AudioAttributes.Builder().setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).build()).build();
+        }
+        else{
+            mBellSoundPool = new SoundPool(1, AudioManager.STREAM_MUSIC, 0);
+
+        }
 
         viewPager.setAdapter(new PagerAdapter() {
             @Override
@@ -616,7 +647,9 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
         }
     }
 
-    /** Try switching to session and note about it, but do nothing if already displaying the session. */
+    /**
+     * Try switching to session and note about it, but do nothing if already displaying the session.
+     */
     void switchToSession(TerminalSession session) {
         if (mTerminalView.attachSession(session)) {
             noteSessionInfo();
@@ -664,7 +697,9 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
         menu.add(Menu.NONE, CONTEXTMENU_HELP_ID, Menu.NONE, R.string.help);
     }
 
-    /** Hook system menu to show context menu instead. */
+    /**
+     * Hook system menu to show context menu instead.
+     */
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         mTerminalView.showContextMenu();
@@ -722,7 +757,7 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
                         String url = (String) urls[position];
                         Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                         try {
-                            startActivity(i, null);
+                            startActivity(i);
                         } catch (ActivityNotFoundException e) {
                             // If no applications match, Android displays a system message.
                             startActivity(Intent.createChooser(i, null));
@@ -833,7 +868,9 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
             getCurrentTermSession().getEmulator().paste(paste.toString());
     }
 
-    /** The current session as stored or the last one if that does not exist. */
+    /**
+     * The current session as stored or the last one if that does not exist.
+     */
     public TerminalSession getStoredCurrentSessionOrLast() {
         TerminalSession stored = TermuxPreferences.getCurrentSession(this);
         if (stored != null) return stored;
@@ -842,7 +879,9 @@ public final class TermuxActivity extends Activity implements ServiceConnection 
         return mTermService.getSessions().get(numberOfSessions - 1);
     }
 
-    /** Show a toast and dismiss the last one if still visible. */
+    /**
+     * Show a toast and dismiss the last one if still visible.
+     */
     void showToast(String text, boolean longDuration) {
         if (mLastToast != null) mLastToast.cancel();
         mLastToast = Toast.makeText(TermuxActivity.this, text, longDuration ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT);

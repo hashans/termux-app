@@ -42,7 +42,7 @@
         <activity
             android:name="com.termux.app.TermuxHelpActivity"
             android:exported="false"
-            android:theme="@android:style/Theme.Material.Light.DarkActionBar"
+            android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar"
             android:parentActivityName=".app.TermuxActivity"
             android:label="@string/application_name" />
 
@@ -90,6 +90,7 @@
 
         <provider
             android:name=".filepicker.TermuxDocumentsProvider"
+            android:enabled="false"
             android:authorities="com.termux.documents"
             android:grantUriPermissions="true"
             android:exported="true"

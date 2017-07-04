@@ -21,6 +21,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 public class TermuxFileReceiverActivity extends Activity {
@@ -57,7 +58,7 @@ public class TermuxFileReceiverActivity extends Activity {
                     String subject = intent.getStringExtra(Intent.EXTRA_SUBJECT);
                     if (subject == null) subject = intent.getStringExtra(Intent.EXTRA_TITLE);
                     if (subject != null) subject += ".txt";
-                    promptNameAndSave(new ByteArrayInputStream(sharedText.getBytes(StandardCharsets.UTF_8)), subject);
+                    promptNameAndSave(new ByteArrayInputStream(sharedText.getBytes(Charset.forName("UTF-8"))), subject);
                 }
             } else if (sharedUri != null) {
                 handleContentUri(sharedUri, intent.getStringExtra(Intent.EXTRA_TITLE));
@@ -83,12 +84,15 @@ public class TermuxFileReceiverActivity extends Activity {
 
     void showErrorDialogAndQuit(String message) {
         mFinishOnDismissNameDialog = false;
-        new AlertDialog.Builder(this).setMessage(message).setOnDismissListener(new DialogInterface.OnDismissListener() {
+        AlertDialog.Builder alertBuilder = new AlertDialog.Builder(this);
+        alertBuilder.setMessage(message).create().setOnDismissListener(new DialogInterface.OnDismissListener() {
             @Override
             public void onDismiss(DialogInterface dialog) {
                 finish();
             }
-        }).setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+        });
+
+        alertBuilder.setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 finish();
@@ -97,24 +101,38 @@ public class TermuxFileReceiverActivity extends Activity {
     }
 
     void handleContentUri(final Uri uri, String subjectFromIntent) {
-        try {
-            String attachmentFileName = null;
+        String attachmentFileName = null;
 
-            String[] projection = new String[]{OpenableColumns.DISPLAY_NAME};
-            try (Cursor c = getContentResolver().query(uri, projection, null, null, null)) {
-                if (c != null && c.moveToFirst()) {
-                    final int fileNameColumnId = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                    if (fileNameColumnId >= 0) attachmentFileName = c.getString(fileNameColumnId);
-                }
+        String[] projection = new String[]{OpenableColumns.DISPLAY_NAME};
+        Cursor c = getContentResolver().query(uri, projection, null, null, null);
+        try {
+
+
+
+            if (c != null && c.moveToFirst()) {
+                final int fileNameColumnId = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (fileNameColumnId >= 0) attachmentFileName = c.getString(fileNameColumnId);
             }
+
+
 
             if (attachmentFileName == null) attachmentFileName = subjectFromIntent;
 
             InputStream in = getContentResolver().openInputStream(uri);
             promptNameAndSave(in, attachmentFileName);
+
+
         } catch (Exception e) {
             showErrorDialogAndQuit("Unable to handle shared content:\n\n" + e.getMessage());
             Log.e("termux", "handleContentUri(uri=" + uri + ") failed", e);
+        }
+        finally {
+            try{
+                c.close();
+            }
+            catch (Exception ex){
+                ex.printStackTrace();
+            }
         }
     }
 
@@ -176,21 +194,32 @@ public class TermuxFileReceiverActivity extends Activity {
             showErrorDialogAndQuit("Cannot create directory: " + receiveDir.getAbsolutePath());
             return null;
         }
+
+        final File outFile = new File(receiveDir, attachmentFileName);
+        FileOutputStream f = null;
         try {
-            final File outFile = new File(receiveDir, attachmentFileName);
-            try (FileOutputStream f = new FileOutputStream(outFile)) {
-                byte[] buffer = new byte[4096];
-                int readBytes;
-                while ((readBytes = in.read(buffer)) > 0) {
-                    f.write(buffer, 0, readBytes);
-                }
+            f = new FileOutputStream(outFile);
+            byte[] buffer = new byte[4096];
+            int readBytes;
+            while ((readBytes = in.read(buffer)) > 0) {
+                f.write(buffer, 0, readBytes);
             }
-            return outFile;
+
         } catch (IOException e) {
             showErrorDialogAndQuit("Error saving file:\n\n" + e);
             Log.e("termux", "Error saving file", e);
             return null;
         }
+        finally {
+            try{
+                f.close();
+            }
+            catch (Exception ex){
+                ex.printStackTrace();
+            }
+        }
+
+        return outFile;
     }
 
     void handleUrlAndFinish(final String url) {

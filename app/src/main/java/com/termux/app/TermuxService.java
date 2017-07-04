@@ -14,6 +14,7 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.WakefulBroadcastReceiver;
 import android.util.Log;
 import android.widget.ArrayAdapter;
@@ -200,7 +201,7 @@ public final class TermuxService extends Service implements SessionChangedCallba
         final boolean wakeLockHeld = mWakeLock != null;
         if (wakeLockHeld) contentText += " (wake lock held)";
 
-        Notification.Builder builder = new Notification.Builder(this);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
         builder.setContentTitle(getText(R.string.application_name));
         builder.setContentText(contentText);
         builder.setSmallIcon(R.drawable.ic_service_notification);
